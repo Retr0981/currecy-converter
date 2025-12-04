@@ -10,7 +10,8 @@
   ],
   "host_permissions": [
     "https://api.exchangerate-api.com/*",
-    "https://cdn.jsdelivr.net/*"
+    "https://cdn.jsdelivr.net/*",
+     "https://open.er-api.com/*"
   ],
   "background": {
     "service_worker": "background.js"
