@@ -550,3 +550,107 @@ input:checked + .toggle-slider:before {
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.2) rgba(255, 255, 255, 0.05);
 }
+
+/* Additional styles for converted prices */
+.currency-converter-result {
+    transition: all 0.3s ease !important;
+    cursor: pointer !important;
+    display: inline-block !important;
+}
+
+.currency-converter-result:hover {
+    opacity: 0.8 !important;
+    text-decoration: underline !important;
+}
+
+.currency-converter-wrapper {
+    display: inline !important;
+}
+
+/* Success animation */
+@keyframes convertSuccess {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.convert-success {
+    animation: convertSuccess 0.5s ease;
+}
+
+/* Badge animation */
+@keyframes badgePulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+.badge {
+    animation: badgePulse 0.3s ease;
+}
+
+/* Button loading state */
+.btn-loading {
+    opacity: 0.7;
+    cursor: wait !important;
+}
+
+.btn-loading i {
+    animation: spin 1s linear infinite;
+}
+
+/* Enhanced color picker */
+.color-btn {
+    position: relative;
+    overflow: hidden;
+}
+
+.color-btn::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent);
+    border-radius: 8px;
+}
+
+.color-btn.active::before {
+    content: '✓';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-weight: bold;
+    font-size: 14px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+/* Dropdown enhancements */
+.currency-select option:hover {
+    background: linear-gradient(135deg, #667eea, #764ba2) !important;
+    color: white !important;
+}
+
+/* Responsive adjustments */
+@media (max-height: 700px) {
+    .app-container {
+        padding: 15px;
+        gap: 12px;
+    }
+    
+    .rate-card,
+    .settings-card,
+    .color-card,
+    .quick-convert {
+        padding: 15px;
+    }
+    
+    .btn-primary,
+    .btn-secondary,
+    .btn-toggle {
+        padding: 14px;
+    }
+}
