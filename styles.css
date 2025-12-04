@@ -54,7 +54,9 @@ body {
     font-size: 28px;
     background: var(--primary-gradient);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
+    color: transparent;
 }
 
 .logo h1 {
@@ -62,7 +64,9 @@ body {
     font-weight: 700;
     background: var(--primary-gradient);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
+    color: transparent;
 }
 
 .status {
@@ -127,7 +131,9 @@ body {
     font-weight: 700;
     background: var(--success-gradient);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
+    color: transparent;
 }
 
 .rate-time {
@@ -329,6 +335,22 @@ input:checked + .toggle-slider:before {
     border-radius: 12px;
     cursor: pointer;
     background: transparent;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+#textColor::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+#textColor::-webkit-color-swatch {
+    border: none;
+    border-radius: 8px;
+}
+
+#textColor::-moz-color-swatch {
+    border: none;
+    border-radius: 8px;
 }
 
 .color-presets {
@@ -521,4 +543,10 @@ input:checked + .toggle-slider:before {
 
 ::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.3);
+}
+
+/* Firefox scrollbar */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) rgba(255, 255, 255, 0.05);
 }
