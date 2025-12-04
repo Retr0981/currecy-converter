@@ -1,328 +1,574 @@
-// Universal Currency Converter - Content Script
-
-class PageConverter {
+class CurrencyConverter {
     constructor() {
-        this.convertedElements = new Map();
-        this.settings = {};
-        this.originalTexts = new Map();
+        this.currencies = [];
+        this.rates = {};
+        this.currentTab = null;
+        this.settings = {
+            sourceCurrency: 'auto',
+            targetCurrency: 'EUR',
+            autoDetect: true,
+            showOriginal: true,
+            textColor: '#00B894',
+            autoConvert: false
+        };
         
         this.init();
     }
 
-    init() {
-        // Listen for messages from popup
-        chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-            this.handleMessage(request, sender, sendResponse);
-            return true; // Keep message channel open for async response
-        });
-        
-        // Auto-convert on page load if enabled
-        this.checkAutoConvert();
+    async init() {
+        this.bindElements();
+        await this.loadCurrencies();
+        await this.loadSettings();
+        await this.getCurrentTab();
+        await this.loadExchangeRates();
+        this.setupEventListeners();
+        this.updateUI();
+        this.updateStatus('Ready to convert', 'ready');
     }
 
-    async checkAutoConvert() {
-        const settings = await chrome.storage.sync.get(['currencySettings']);
-        if (settings.currencySettings?.autoConvert) {
-            setTimeout(() => {
-                this.convertPage(settings.currencySettings);
-            }, 1000); // Wait for page to load
-        }
+    bindElements() {
+        this.elements = {
+            sourceCurrency: document.getElementById('sourceCurrency'),
+            targetCurrency: document.getElementById('targetCurrency'),
+            autoDetect: document.getElementById('autoDetect'),
+            showOriginal: document.getElementById('showOriginal'),
+            textColor: document.getElementById('textColor'),
+            convertPage: document.getElementById('convertPage'),
+            resetPage: document.getElementById('resetPage'),
+            toggleAutoConvert: document.getElementById('toggleAutoConvert'),
+            refreshRates: document.getElementById('refreshRates'),
+            rateValue: document.getElementById('rateValue'),
+            rateTime: document.getElementById('rateTime'),
+            convertedCount: document.getElementById('convertedCount'),
+            currencyCount: document.getElementById('currencyCount'),
+            status: document.getElementById('status'),
+            statusText: document.querySelector('.status-text'),
+            statusDot: document.querySelector('.status-dot'),
+            quickButtons: document.getElementById('quickButtons'),
+            colorPresets: document.querySelectorAll('.color-btn')
+        };
     }
 
-    handleMessage(request, sender, sendResponse) {
-        switch(request.action) {
-            case 'convertPrices':
-                this.convertPage(request.settings);
-                sendResponse({ success: true });
-                break;
-                
-            case 'restorePrices':
-                this.restorePrices();
-                sendResponse({ success: true });
-                break;
-                
-            case 'getConversionCount':
-                sendResponse({ count: this.convertedElements.size });
-                break;
-                
-            default:
-                sendResponse({ error: 'Unknown action' });
-        }
-    }
-
-    convertPage(settings) {
-        this.settings = settings;
-        this.convertedElements.clear();
-        this.originalTexts.clear();
-        
-        // Find and convert all price elements
-        const priceElements = this.findPriceElements();
-        
-        priceElements.forEach(element => {
-            this.convertElement(element);
-        });
-        
-        console.log(`✅ Converted ${this.convertedElements.size} prices`);
-        
-        // Update badge if this is from auto-convert
-        if (this.convertedElements.size > 0) {
-            chrome.runtime.sendMessage({
-                action: 'updateCount',
-                count: this.convertedElements.size
-            });
-        }
-    }
-
-    findPriceElements() {
-        const elements = [];
-        
-        // Walk through DOM to find text nodes containing prices
-        const walker = document.createTreeWalker(
-            document.body,
-            NodeFilter.SHOW_TEXT,
-            null,
-            false
-        );
-        
-        let node;
-        const priceRegex = this.getPriceRegex();
-        
-        while ((node = walker.nextNode())) {
-            if (node.textContent && priceRegex.test(node.textContent)) {
-                elements.push(node);
-            }
-        }
-        
-        return elements;
-    }
-
-    getPriceRegex() {
-        // Comprehensive price detection regex
-        return /(?:\$|€|£|¥|₹|₽|₩|₺|zł|Kč|Ft|kr|R\$|S\$|HK\$|NZ\$|A\$|C\$|د\.إ|ر\.س|฿|RM|Rp|₱|Rs|₫|৳|₸|₴|₦|៛|₡|₲|₵|₪|₮|₭|₨|₼|₾|₿)\s*\d[\d,.]*\b|\b\d[\d,.]*\s*(?:USD|EUR|GBP|JPY|CAD|AUD|CHF|CNY|INR|BRL|RUB|KRW|MXN|SGD|HKD|NZD|SEK|NOK|DKK|ZAR|AED|SAR|THB|MYR|IDR|PHP|TRY|PLN|CZK|HUF|R$|S$|HK$|NZ$|A$|C$)/gi;
-    }
-
-    convertElement(textNode) {
-        const originalText = textNode.textContent;
-        let newText = originalText;
-        
-        // Find all prices in text
-        const priceRegex = this.getPriceRegex();
-        const matches = [...originalText.matchAll(priceRegex)];
-        
-        if (matches.length === 0) return;
-        
-        matches.forEach(match => {
-            const priceText = match[0];
-            const conversion = this.convertPrice(priceText);
+    async loadCurrencies() {
+        try {
+            // Fetch comprehensive currency list
+            const response = await fetch('https://open.er-api.com/v6/latest/USD');
+            const data = await response.json();
             
-            if (conversion) {
-                newText = newText.replace(priceText, conversion.formatted);
+            if (data.rates) {
+                // Create currencies array from rates
+                this.currencies = Object.keys(data.rates).map(code => ({
+                    code,
+                    name: this.getCurrencyName(code),
+                    symbol: this.getCurrencySymbol(code),
+                    flag: this.getCurrencyFlag(code)
+                }));
                 
-                // Store original for restoration
-                this.convertedElements.set(textNode, {
-                    original: originalText,
-                    converted: newText,
-                    price: priceText,
-                    conversion: conversion
+                // Add USD (base currency)
+                this.currencies.unshift({
+                    code: 'USD',
+                    name: 'US Dollar',
+                    symbol: '$',
+                    flag: '🇺🇸'
                 });
+            } else {
+                this.loadFallbackCurrencies();
+            }
+        } catch (error) {
+            console.log('Using fallback currencies:', error);
+            this.loadFallbackCurrencies();
+        }
+        
+        this.populateCurrencyDropdowns();
+        this.populateQuickButtons();
+        this.elements.currencyCount.textContent = `${this.currencies.length} currencies`;
+    }
+
+    getCurrencyName(code) {
+        const names = {
+            'USD': 'US Dollar',
+            'EUR': 'Euro',
+            'GBP': 'British Pound',
+            'JPY': 'Japanese Yen',
+            'CAD': 'Canadian Dollar',
+            'AUD': 'Australian Dollar',
+            'CHF': 'Swiss Franc',
+            'CNY': 'Chinese Yuan',
+            'INR': 'Indian Rupee',
+            'BRL': 'Brazilian Real',
+            'RUB': 'Russian Ruble',
+            'KRW': 'South Korean Won',
+            'MXN': 'Mexican Peso',
+            'SGD': 'Singapore Dollar',
+            'HKD': 'Hong Kong Dollar',
+            'NZD': 'New Zealand Dollar'
+        };
+        return names[code] || code;
+    }
+
+    getCurrencySymbol(code) {
+        const symbols = {
+            'USD': '$', 'EUR': '€', 'GBP': '£', 'JPY': '¥', 'CAD': 'C$',
+            'AUD': 'A$', 'CHF': 'CHF', 'CNY': '¥', 'INR': '₹', 'BRL': 'R$',
+            'RUB': '₽', 'KRW': '₩', 'MXN': '$', 'SGD': 'S$', 'HKD': 'HK$',
+            'NZD': 'NZ$'
+        };
+        return symbols[code] || code;
+    }
+
+    getCurrencyFlag(code) {
+        const flags = {
+            'USD': '🇺🇸', 'EUR': '🇪🇺', 'GBP': '🇬🇧', 'JPY': '🇯🇵', 'CAD': '🇨🇦',
+            'AUD': '🇦🇺', 'CHF': '🇨🇭', 'CNY': '🇨🇳', 'INR': '🇮🇳', 'BRL': '🇧🇷',
+            'RUB': '🇷🇺', 'KRW': '🇰🇷', 'MXN': '🇲🇽', 'SGD': '🇸🇬', 'HKD': '🇭🇰',
+            'NZD': '🇳🇿', 'SEK': '🇸🇪', 'NOK': '🇳🇴', 'DKK': '🇩🇰', 'ZAR': '🇿🇦',
+            'AED': '🇦🇪', 'SAR': '🇸🇦', 'THB': '🇹🇭', 'MYR': '🇲🇾', 'IDR': '🇮🇩',
+            'PHP': '🇵🇭', 'TRY': '🇹🇷', 'PLN': '🇵🇱', 'CZK': '🇨🇿', 'HUF': '🇭🇺'
+        };
+        return flags[code] || '💰';
+    }
+
+    loadFallbackCurrencies() {
+        this.currencies = [
+            {code: 'USD', name: 'US Dollar', symbol: '$', flag: '🇺🇸'},
+            {code: 'EUR', name: 'Euro', symbol: '€', flag: '🇪🇺'},
+            {code: 'GBP', name: 'British Pound', symbol: '£', flag: '🇬🇧'},
+            {code: 'JPY', name: 'Japanese Yen', symbol: '¥', flag: '🇯🇵'},
+            {code: 'CAD', name: 'Canadian Dollar', symbol: 'C$', flag: '🇨🇦'},
+            {code: 'AUD', name: 'Australian Dollar', symbol: 'A$', flag: '🇦🇺'},
+            {code: 'CHF', name: 'Swiss Franc', symbol: 'CHF', flag: '🇨🇭'},
+            {code: 'CNY', name: 'Chinese Yuan', symbol: '¥', flag: '🇨🇳'},
+            {code: 'INR', name: 'Indian Rupee', symbol: '₹', flag: '🇮🇳'},
+            {code: 'BRL', name: 'Brazilian Real', symbol: 'R$', flag: '🇧🇷'},
+            {code: 'RUB', name: 'Russian Ruble', symbol: '₽', flag: '🇷🇺'},
+            {code: 'KRW', name: 'South Korean Won', symbol: '₩', flag: '🇰🇷'},
+            {code: 'MXN', name: 'Mexican Peso', symbol: '$', flag: '🇲🇽'},
+            {code: 'SGD', name: 'Singapore Dollar', symbol: 'S$', flag: '🇸🇬'},
+            {code: 'HKD', name: 'Hong Kong Dollar', symbol: 'HK$', flag: '🇭🇰'},
+            {code: 'NZD', name: 'New Zealand Dollar', symbol: 'NZ$', flag: '🇳🇿'},
+            {code: 'SEK', name: 'Swedish Krona', symbol: 'kr', flag: '🇸🇪'},
+            {code: 'NOK', name: 'Norwegian Krone', symbol: 'kr', flag: '🇳🇴'},
+            {code: 'DKK', name: 'Danish Krone', symbol: 'kr', flag: '🇩🇰'},
+            {code: 'ZAR', name: 'South African Rand', symbol: 'R', flag: '🇿🇦'}
+        ];
+    }
+
+    populateCurrencyDropdowns() {
+        // Clear and populate source currency
+        this.elements.sourceCurrency.innerHTML = '<option value="auto">🔍 Auto Detect</option>';
+        this.currencies.forEach(currency => {
+            const option = document.createElement('option');
+            option.value = currency.code;
+            option.textContent = `${currency.flag} ${currency.code} - ${currency.name}`;
+            this.elements.sourceCurrency.appendChild(option);
+        });
+
+        // Clear and populate target currency
+        this.elements.targetCurrency.innerHTML = '';
+        this.currencies.forEach(currency => {
+            const option = document.createElement('option');
+            option.value = currency.code;
+            option.textContent = `${currency.flag} ${currency.code} - ${currency.name}`;
+            this.elements.targetCurrency.appendChild(option);
+            
+            // Set EUR as default
+            if (currency.code === 'EUR') {
+                option.selected = true;
             }
         });
-        
-        if (newText !== originalText) {
-            this.originalTexts.set(textNode, originalText);
-            this.updateTextNode(textNode, newText);
-        }
+
+        // Set saved values
+        this.elements.sourceCurrency.value = this.settings.sourceCurrency;
+        this.elements.targetCurrency.value = this.settings.targetCurrency;
     }
 
-    convertPrice(priceText) {
-        // Extract numeric value
-        const numericValue = this.extractNumericValue(priceText);
-        if (!numericValue) return null;
+    populateQuickButtons() {
+        const popularCurrencies = ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'INR', 'CNY', 'CHF', 'SGD'];
         
-        // Detect source currency
-        const sourceCurrency = this.detectCurrency(priceText);
-        if (!sourceCurrency) return null;
+        this.elements.quickButtons.innerHTML = '';
         
-        // Get target currency from settings
-        const targetCurrency = this.settings.targetCurrency || 'USD';
-        
-        // Get conversion rate
-        const rate = this.getConversionRate(sourceCurrency, targetCurrency);
-        if (!rate) return null;
-        
-        // Calculate converted value
-        const convertedValue = numericValue * rate;
-        
-        // Format the result
-        const formatted = this.formatConversion(
-            priceText,
-            numericValue,
-            convertedValue,
-            sourceCurrency,
-            targetCurrency
-        );
-        
-        return {
-            originalValue: numericValue,
-            convertedValue,
-            sourceCurrency,
-            targetCurrency,
-            rate,
-            formatted
-        };
-    }
-
-    extractNumericValue(text) {
-        // Remove all non-numeric characters except dots and commas
-        const cleaned = text.replace(/[^\d.,]/g, '');
-        
-        // Handle different decimal separators
-        let numericString = cleaned;
-        
-        // If last comma is followed by exactly 2 digits, it's likely decimal separator
-        if (/,(\d{2})$/.test(cleaned)) {
-            numericString = cleaned.replace(',', '.');
-        }
-        
-        // Remove any remaining commas
-        numericString = numericString.replace(/,/g, '');
-        
-        const value = parseFloat(numericString);
-        return isNaN(value) ? null : value;
-    }
-
-    detectCurrency(text) {
-        const currencyPatterns = {
-            'USD': [/\$/g, /USD/gi, /US\s*Dollar/gi],
-            'EUR': [/€/g, /EUR/gi, /Euro/gi],
-            'GBP': [/£/g, /GBP/gi, /Pound/gi],
-            'JPY': [/¥/g, /JPY/gi, /Yen/gi],
-            'CAD': [/C\$/g, /CAD/gi],
-            'AUD': [/A\$/g, /AUD/gi],
-            'CHF': [/CHF/gi, /Fr\./g],
-            'CNY': [/CNY/gi, /¥/g, /Yuan/gi],
-            'INR': [/₹/g, /INR/gi, /Rupee/gi],
-            'BRL': [/R\$/g, /BRL/gi],
-            'RUB': [/₽/g, /RUB/gi],
-            'KRW': [/₩/g, /KRW/gi],
-            'MXN': [/MXN/gi],
-            'SGD': [/S\$/g, /SGD/gi],
-            'HKD': [/HK\$/g, /HKD/gi],
-            'NZD': [/NZ\$/g, /NZD/gi],
-            'SEK': [/SEK/gi, /kr/g],
-            'NOK': [/NOK/gi, /kr/g],
-            'DKK': [/DKK/gi, /kr/g],
-            'ZAR': [/ZAR/gi, /R/g],
-            'AED': [/AED/gi, /د\.إ/g],
-            'SAR': [/SAR/gi, /ر\.س/g],
-            'THB': [/฿/g, /THB/gi],
-            'MYR': [/RM/g, /MYR/gi],
-            'IDR': [/IDR/gi, /Rp/g],
-            'PHP': [/₱/g, /PHP/gi],
-            'TRY': [/₺/g, /TRY/gi],
-            'PLN': [/zł/g, /PLN/gi],
-            'CZK': [/Kč/g, /CZK/gi],
-            'HUF': [/Ft/g, /HUF/gi]
-        };
-        
-        for (const [currency, patterns] of Object.entries(currencyPatterns)) {
-            for (const pattern of patterns) {
-                if (pattern.test(text)) {
-                    return currency;
-                }
+        popularCurrencies.forEach(code => {
+            const currency = this.currencies.find(c => c.code === code);
+            if (currency) {
+                const button = document.createElement('button');
+                button.className = 'quick-btn';
+                button.innerHTML = `${currency.flag} ${currency.code}`;
+                button.title = `Convert to ${currency.name}`;
+                button.dataset.currency = code;
+                
+                button.addEventListener('click', () => {
+                    this.elements.targetCurrency.value = code;
+                    this.settings.targetCurrency = code;
+                    this.saveSettings();
+                    this.updateRateDisplay();
+                    this.updateStatus(`Target set to ${currency.name}`, 'success');
+                });
+                
+                this.elements.quickButtons.appendChild(button);
             }
-        }
-        
-        // If auto-detect is enabled, try to guess from context
-        if (this.settings.sourceCurrency === 'auto') {
-            // Look for common patterns
-            if (text.includes('$') && !text.includes('C$') && !text.includes('A$') && !text.includes('NZ$') && !text.includes('HK$') && !text.includes('S$')) {
-                return 'USD';
-            }
-        }
-        
-        return null;
+        });
     }
 
-    getConversionRate(from, to) {
-        if (!this.settings.rates || !this.settings.rates[from] || !this.settings.rates[to]) {
-            return null;
+    async loadSettings() {
+        try {
+            const result = await chrome.storage.sync.get(['currencySettings']);
+            if (result.currencySettings) {
+                this.settings = { ...this.settings, ...result.currencySettings };
+                
+                // Update UI
+                this.elements.sourceCurrency.value = this.settings.sourceCurrency;
+                this.elements.targetCurrency.value = this.settings.targetCurrency;
+                this.elements.autoDetect.checked = this.settings.autoDetect;
+                this.elements.showOriginal.checked = this.settings.showOriginal;
+                this.elements.textColor.value = this.settings.textColor;
+                
+                // Update color presets
+                this.updateColorPresets();
+                this.updateAutoConvertButton();
+            }
+        } catch (error) {
+            console.error('Error loading settings:', error);
         }
-        
-        // Calculate conversion rate
-        return this.settings.rates[to] / this.settings.rates[from];
     }
 
-    formatConversion(originalText, originalValue, convertedValue, fromCurrency, toCurrency) {
-        const formatValue = (value, currency) => {
-            try {
-                return new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: currency,
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                }).format(value);
-            } catch {
-                // Fallback formatting
-                return `${value.toFixed(2)} ${currency}`;
+    async saveSettings() {
+        try {
+            await chrome.storage.sync.set({ currencySettings: this.settings });
+        } catch (error) {
+            console.error('Error saving settings:', error);
+        }
+    }
+
+    async getCurrentTab() {
+        try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            this.currentTab = tab;
+            
+            // Get conversion count from current tab
+            if (this.currentTab) {
+                await this.updateConversionCount();
             }
-        };
+        } catch (error) {
+            console.error('Error getting current tab:', error);
+        }
+    }
+
+    async loadExchangeRates() {
+        this.updateStatus('Loading exchange rates...', 'loading');
         
-        const originalFormatted = formatValue(originalValue, fromCurrency);
-        const convertedFormatted = formatValue(convertedValue, toCurrency);
+        try {
+            const response = await chrome.runtime.sendMessage({ action: 'getRates' });
+            
+            if (response && Object.keys(response).length > 0) {
+                this.rates = response;
+                this.updateRateDisplay();
+                this.updateStatus('Rates loaded successfully', 'success');
+            } else {
+                throw new Error('No rates available');
+            }
+        } catch (error) {
+            console.error('Failed to load rates:', error);
+            this.updateStatus('Using cached rates', 'warning');
+            
+            // Try to get cached rates
+            const cached = await chrome.storage.local.get(['rates']);
+            this.rates = cached.rates || {};
+        }
+    }
+
+    updateRateDisplay() {
+        const source = this.settings.sourceCurrency === 'auto' ? 'USD' : this.settings.sourceCurrency;
+        const target = this.settings.targetCurrency;
         
-        if (this.settings.showOriginal) {
-            return `${originalFormatted} <span class="converted-price" style="color: ${this.settings.textColor || '#00B894'}">→ ${convertedFormatted}</span>`;
+        if (source === target) {
+            this.elements.rateValue.textContent = `1 ${source} = 1 ${target}`;
+            return;
+        }
+        
+        if (this.rates[source] && this.rates[target]) {
+            const rate = (this.rates[target] / this.rates[source]).toFixed(4);
+            this.elements.rateValue.textContent = `1 ${source} = ${rate} ${target}`;
         } else {
-            return `<span class="converted-price" style="color: ${this.settings.textColor || '#00B894'}">${convertedFormatted}</span>`;
+            this.elements.rateValue.textContent = 'Loading rates...';
+        }
+        
+        // Update time
+        const now = new Date();
+        this.elements.rateTime.textContent = `Updated ${this.formatTime(now)}`;
+    }
+
+    formatTime(date) {
+        const diff = Date.now() - date.getTime();
+        const minutes = Math.floor(diff / 60000);
+        
+        if (minutes < 1) return 'just now';
+        if (minutes < 60) return `${minutes}m ago`;
+        
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `${hours}h ago`;
+        
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    updateStatus(message, type = 'ready') {
+        this.elements.statusText.textContent = message;
+        
+        // Reset classes
+        this.elements.statusDot.className = 'status-dot';
+        this.elements.status.style.background = 'rgba(255, 255, 255, 0.1)';
+        
+        switch(type) {
+            case 'loading':
+                this.elements.statusDot.style.background = '#FFD700';
+                this.elements.status.style.background = 'rgba(255, 215, 0, 0.2)';
+                break;
+            case 'success':
+                this.elements.statusDot.style.background = '#4cd964';
+                this.elements.status.style.background = 'rgba(76, 217, 100, 0.2)';
+                break;
+            case 'warning':
+                this.elements.statusDot.style.background = '#FF9500';
+                this.elements.status.style.background = 'rgba(255, 149, 0, 0.2)';
+                break;
+            case 'error':
+                this.elements.statusDot.style.background = '#FF3B30';
+                this.elements.status.style.background = 'rgba(255, 59, 48, 0.2)';
+                break;
+            default:
+                this.elements.statusDot.style.background = '#4cd964';
+        }
+        
+        // Auto-clear success messages after 2 seconds
+        if (type === 'success') {
+            setTimeout(() => {
+                if (this.elements.statusText.textContent === message) {
+                    this.updateStatus('Ready', 'ready');
+                }
+            }, 2000);
         }
     }
 
-    updateTextNode(textNode, newHtml) {
-        const parent = textNode.parentNode;
-        if (!parent) return;
+    async convertPage() {
+        if (!this.currentTab) {
+            this.updateStatus('No active tab found', 'error');
+            return;
+        }
         
-        // Create a span to hold the HTML
-        const span = document.createElement('span');
-        span.className = 'currency-converter-result';
-        span.innerHTML = newHtml;
+        this.updateStatus('Converting page...', 'loading');
         
-        // Add hover effect
-        span.addEventListener('mouseenter', () => {
-            span.style.opacity = '0.9';
-        });
-        
-        span.addEventListener('mouseleave', () => {
-            span.style.opacity = '1';
-        });
-        
-        // Replace text node with span
-        parent.replaceChild(span, textNode);
+        try {
+            // Prepare settings for conversion
+            const conversionSettings = {
+                sourceCurrency: this.settings.autoDetect ? 'auto' : this.settings.sourceCurrency,
+                targetCurrency: this.settings.targetCurrency,
+                textColor: this.settings.textColor,
+                showOriginal: this.settings.showOriginal,
+                rates: this.rates
+            };
+            
+            // Send conversion command
+            await chrome.tabs.sendMessage(this.currentTab.id, {
+                action: 'convertPrices',
+                settings: conversionSettings
+            });
+            
+            // Get updated count
+            await this.updateConversionCount();
+            
+            this.updateStatus('Conversion complete!', 'success');
+            
+        } catch (error) {
+            console.error('Conversion failed:', error);
+            
+            // Try to inject content script if not already loaded
+            if (error.message.includes('Receiving end does not exist')) {
+                this.updateStatus('Injecting converter...', 'loading');
+                
+                try {
+                    await chrome.scripting.executeScript({
+                        target: { tabId: this.currentTab.id },
+                        files: ['content.js']
+                    });
+                    
+                    // Retry conversion after injection
+                    setTimeout(() => this.convertPage(), 500);
+                } catch (injectError) {
+                    this.updateStatus('Failed to load converter', 'error');
+                }
+            } else {
+                this.updateStatus('Conversion failed', 'error');
+            }
+        }
     }
 
-    restorePrices() {
-        // Restore all converted elements
-        this.convertedElements.forEach((data, textNode) => {
-            const parent = textNode.parentNode;
-            if (parent && parent.classList.contains('currency-converter-result')) {
-                parent.replaceWith(textNode);
+    async resetPage() {
+        if (!this.currentTab) return;
+        
+        this.updateStatus('Restoring page...', 'loading');
+        
+        try {
+            await chrome.tabs.sendMessage(this.currentTab.id, {
+                action: 'restorePrices'
+            });
+            
+            this.elements.convertedCount.textContent = '0';
+            this.updateStatus('Page restored', 'success');
+            
+        } catch (error) {
+            console.error('Reset failed:', error);
+            this.updateStatus('Reset failed', 'error');
+        }
+    }
+
+    async updateConversionCount() {
+        if (!this.currentTab) return;
+        
+        try {
+            const response = await chrome.tabs.sendMessage(this.currentTab.id, {
+                action: 'getConversionCount'
+            });
+            
+            if (response && response.count !== undefined) {
+                this.elements.convertedCount.textContent = response.count;
+            }
+        } catch (error) {
+            // Ignore errors - tab might not have content script loaded
+        }
+    }
+
+    toggleAutoConvert() {
+        this.settings.autoConvert = !this.settings.autoConvert;
+        this.updateAutoConvertButton();
+        this.saveSettings();
+        
+        // Send message to background script
+        chrome.runtime.sendMessage({
+            action: 'setAutoConvert',
+            enabled: this.settings.autoConvert
+        });
+        
+        this.updateStatus(
+            this.settings.autoConvert ? 'Auto-convert enabled' : 'Auto-convert disabled',
+            this.settings.autoConvert ? 'success' : 'warning'
+        );
+    }
+
+    updateAutoConvertButton() {
+        const icon = this.settings.autoConvert ? 'fa-toggle-on' : 'fa-toggle-off';
+        const text = this.settings.autoConvert ? 'Auto-Convert: ON' : 'Auto-Convert: OFF';
+        
+        this.elements.toggleAutoConvert.innerHTML = `
+            <i class="fas ${icon}"></i>
+            ${text}
+        `;
+        
+        this.elements.toggleAutoConvert.style.background = this.settings.autoConvert 
+            ? 'rgba(0, 184, 148, 0.3)' 
+            : 'rgba(255, 255, 255, 0.05)';
+        
+        this.elements.toggleAutoConvert.style.borderColor = this.settings.autoConvert 
+            ? 'var(--accent-green)' 
+            : 'rgba(255, 255, 255, 0.1)';
+    }
+
+    updateColorPresets() {
+        this.elements.colorPresets.forEach(btn => {
+            const isActive = btn.dataset.color === this.settings.textColor;
+            btn.classList.toggle('active', isActive);
+        });
+    }
+
+    updateUI() {
+        this.updateRateDisplay();
+        this.updateColorPresets();
+    }
+
+    setupEventListeners() {
+        // Currency selection
+        this.elements.sourceCurrency.addEventListener('change', (e) => {
+            this.settings.sourceCurrency = e.target.value;
+            this.saveSettings();
+            this.updateRateDisplay();
+        });
+        
+        this.elements.targetCurrency.addEventListener('change', (e) => {
+            this.settings.targetCurrency = e.target.value;
+            this.saveSettings();
+            this.updateRateDisplay();
+            this.updateStatus(`Target currency: ${e.target.value}`, 'success');
+        });
+        
+        // Toggle switches
+        this.elements.autoDetect.addEventListener('change', (e) => {
+            this.settings.autoDetect = e.target.checked;
+            this.saveSettings();
+            this.updateStatus(e.target.checked ? 'Auto-detect enabled' : 'Auto-detect disabled', 'success');
+        });
+        
+        this.elements.showOriginal.addEventListener('change', (e) => {
+            this.settings.showOriginal = e.target.checked;
+            this.saveSettings();
+        });
+        
+        // Color picker
+        this.elements.textColor.addEventListener('input', (e) => {
+            this.settings.textColor = e.target.value;
+            this.saveSettings();
+            this.updateColorPresets();
+        });
+        
+        this.elements.textColor.addEventListener('change', (e) => {
+            this.settings.textColor = e.target.value;
+            this.saveSettings();
+            this.updateColorPresets();
+            this.updateStatus('Color updated', 'success');
+        });
+        
+        // Color presets
+        this.elements.colorPresets.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const color = e.target.dataset.color;
+                this.settings.textColor = color;
+                this.elements.textColor.value = color;
+                this.saveSettings();
+                this.updateColorPresets();
+                this.updateStatus('Color preset applied', 'success');
+            });
+        });
+        
+        // Action buttons
+        this.elements.convertPage.addEventListener('click', () => this.convertPage());
+        this.elements.resetPage.addEventListener('click', () => this.resetPage());
+        this.elements.toggleAutoConvert.addEventListener('click', () => this.toggleAutoConvert());
+        this.elements.refreshRates.addEventListener('click', () => {
+            this.loadExchangeRates();
+            this.updateStatus('Refreshing rates...', 'loading');
+        });
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'c') {
+                e.preventDefault();
+                this.convertPage();
+            }
+            if (e.ctrlKey && e.key === 'r') {
+                e.preventDefault();
+                this.resetPage();
+            }
+            if (e.ctrlKey && e.key === 'd') {
+                e.preventDefault();
+                this.toggleAutoConvert();
             }
         });
         
-        // Also restore any text nodes we modified
-        this.originalTexts.forEach((originalText, textNode) => {
-            if (textNode.parentNode) {
-                textNode.textContent = originalText;
-            }
-        });
-        
-        // Clear tracking
-        this.convertedElements.clear();
-        this.originalTexts.clear();
-        
-        console.log('✅ Restored original prices');
+        // Refresh rates periodically
+        setInterval(() => {
+            this.updateRateDisplay();
+        }, 60000); // Every minute
     }
 }
 
-// Initialize converter
-new PageConverter();
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    new CurrencyConverter();
+});
