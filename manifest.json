@@ -1,12 +1,16 @@
 {
   "manifest_version": 3,
-  "name": "Universal Currency Converter",
+  "name": "Universal Currency Converter Pro",
   "version": "1.0",
-  "description": "Convert any currency on any webpage to your preferred currency instantly",
+  "description": "Convert prices on any webpage to any currency instantly with beautiful UI",
   "permissions": [
     "storage",
     "activeTab",
     "scripting"
+  ],
+  "host_permissions": [
+    "https://api.exchangerate-api.com/*",
+    "https://cdn.jsdelivr.net/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -14,22 +18,25 @@
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
-      "16": "icon.png",
-      "48": "icon.png",
-      "128": "icon.png"
+      "16": "icons/icon.png",
+      "48": "icons/icon.png",
+      "128": "icons/icon.png"
     }
   },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
       "js": ["content.js"],
-      "css": ["styles.css"],
       "run_at": "document_idle"
     }
   ],
   "icons": {
-    "16": "icon.png",
-    "48": "icon.png",
-    "128": "icon.png"
-  }
+    "16": "icons/icon.png",
+    "48": "icons/icon.png",
+    "128": "icons/icon.png"
+  },
+  "web_accessible_resources": [{
+    "resources": ["currencies.json"],
+    "matches": ["<all_urls>"]
+  }]
 }
