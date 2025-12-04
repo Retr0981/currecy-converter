@@ -11,7 +11,8 @@
   "host_permissions": [
     "https://api.exchangerate-api.com/*",
     "https://cdn.jsdelivr.net/*",
-     "https://open.er-api.com/*"
+     "https://open.er-api.com/*",
+     "https://restcountries.com/*"
   ],
   "background": {
     "service_worker": "background.js"
