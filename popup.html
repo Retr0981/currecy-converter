@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Currency Converter</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">💱 Universal Converter</div>
+      <div class="subtitle">Convert any currency instantly</div>
+    </header>
+
+    <div class="rate-indicator" id="rate-indicator">
+      Loading exchange rates...
+    </div>
+
+    <section class="controls">
+      <div class="currency-group">
+        <label class="control-label">
+          <span class="emoji">🌍</span>
+          Source Currency
+        </label>
+        <select id="source-currency" class="currency-select">
+          <option value="USD">🇺🇸 USD - US Dollar</option>
+          <option value="EUR">🇪🇺 EUR - Euro</option>
+          <option value="GBP">🇬🇧 GBP - British Pound</option>
+          <option value="JPY">🇯🇵 JPY - Japanese Yen</option>
+          <option value="CAD">🇨🇦 CAD - Canadian Dollar</option>
+          <option value="AUD">🇦🇺 AUD - Australian Dollar</option>
+          <option value="CHF">🇨🇭 CHF - Swiss Franc</option>
+        </select>
+      </div>
+
+      <div class="toggle-switch">
+        <input type="checkbox" id="auto-detect" checked>
+        <label for="auto-detect" class="switch-label">
+          <span class="toggle-ball"></span>
+        </label>
+        <span class="toggle-text">Auto-detect currency</span>
+      </div>
+
+      <div class="currency-group">
+        <label class="control-label">
+          <span class="emoji">🎯</span>
+          Target Currency
+        </label>
+        <select id="target-currency" class="currency-select">
+          <option value="USD">🇺🇸 USD - US Dollar</option>
+          <option value="EUR" selected>🇪🇺 EUR - Euro</option>
+          <option value="GBP">🇬🇧 GBP - British Pound</option>
+          <option value="JPY">🇯🇵 JPY - Japanese Yen</option>
+          <option value="CAD">🇨🇦 CAD - Canadian Dollar</option>
+          <option value="AUD">🇦🇺 AUD - Australian Dollar</option>
+          <option value="INR">🇮🇳 INR - Indian Rupee</option>
+          <option value="CNY">🇨🇳 CNY - Chinese Yuan</option>
+        </select>
+      </div>
+
+      <div class="color-group">
+        <label class="control-label">
+          <span class="emoji">🎨</span>
+          Text Color
+        </label>
+        <input type="color" id="text-color" value="#00ff88" class="color-picker">
+      </div>
+
+      <div class="toggle-switch">
+        <input type="checkbox" id="show-original" checked>
+        <label for="show-original" class="switch-label">
+          <span class="toggle-ball"></span>
+        </label>
+        <span class="toggle-text">Show original price</span>
+      </div>
+
+      <button id="convert-btn" class="convert-button">
+        <span class="btn-emoji">⚡</span>
+        Convert Current Page
+      </button>
+
+      <button id="reset-btn" class="reset-button">
+        <span class="btn-emoji">↩️</span>
+        Reset Page
+      </button>
+    </section>
+
+    <footer>
+      <div class="stats">
+        <span id="converted-count">0</span> prices converted
+      </div>
+      <div class="last-updated" id="last-updated">
+        Rates updated: Never
+      </div>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
