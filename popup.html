@@ -1,101 +1,157 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Currency Converter</title>
-  <link rel="stylesheet" href="styles.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌍 Universal Currency Converter</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <div class="logo">💱 Universal Converter</div>
-      <div class="subtitle">Convert any currency instantly</div>
-    </header>
+    <div class="app-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">
+                <i class="fas fa-globe-americas"></i>
+                <h1>Currency Converter Pro</h1>
+            </div>
+            <div class="status" id="status">
+                <span class="status-dot active"></span>
+                <span class="status-text">Ready</span>
+            </div>
+        </div>
 
-    <div class="rate-indicator" id="rate-indicator">
-      Loading exchange rates...
+        <!-- Rate Display -->
+        <div class="rate-card">
+            <div class="rate-info">
+                <div class="rate-value" id="rateValue">1 USD = 0.92 EUR</div>
+                <div class="rate-time" id="rateTime">Updated just now</div>
+            </div>
+            <button class="refresh-btn" id="refreshRates">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
+
+        <!-- Conversion Settings -->
+        <div class="settings-card">
+            <!-- Source Currency -->
+            <div class="setting-group">
+                <label class="setting-label">
+                    <i class="fas fa-search-dollar"></i>
+                    From Currency
+                </label>
+                <div class="select-wrapper">
+                    <select id="sourceCurrency" class="currency-select">
+                        <option value="auto">🔍 Auto Detect</option>
+                    </select>
+                    <i class="fas fa-chevron-down select-icon"></i>
+                </div>
+            </div>
+
+            <!-- Target Currency -->
+            <div class="setting-group">
+                <label class="setting-label">
+                    <i class="fas fa-flag-usa"></i>
+                    To Currency
+                </label>
+                <div class="select-wrapper">
+                    <select id="targetCurrency" class="currency-select">
+                        <option value="USD">🇺🇸 USD - US Dollar</option>
+                        <option value="EUR" selected>🇪🇺 EUR - Euro</option>
+                        <option value="GBP">🇬🇧 GBP - British Pound</option>
+                        <option value="JPY">🇯🇵 JPY - Japanese Yen</option>
+                        <option value="CAD">🇨🇦 CAD - Canadian Dollar</option>
+                        <option value="AUD">🇦🇺 AUD - Australian Dollar</option>
+                        <option value="INR">🇮🇳 INR - Indian Rupee</option>
+                        <option value="CNY">🇨🇳 CNY - Chinese Yuan</option>
+                    </select>
+                    <i class="fas fa-chevron-down select-icon"></i>
+                </div>
+            </div>
+
+            <!-- Display Settings -->
+            <div class="setting-row">
+                <div class="toggle-group">
+                    <label class="toggle-label">
+                        <i class="fas fa-bolt"></i>
+                        Auto-detect
+                    </label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="autoDetect" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <div class="toggle-group">
+                    <label class="toggle-label">
+                        <i class="fas fa-eye"></i>
+                        Show original
+                    </label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="showOriginal" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Color Picker -->
+        <div class="color-card">
+            <label class="color-label">
+                <i class="fas fa-palette"></i>
+                Converted Text Color
+            </label>
+            <div class="color-picker-group">
+                <input type="color" id="textColor" value="#00B894">
+                <div class="color-presets">
+                    <button class="color-btn" style="background-color: #00B894;" data-color="#00B894"></button>
+                    <button class="color-btn" style="background-color: #0984E3;" data-color="#0984E3"></button>
+                    <button class="color-btn" style="background-color: #6C5CE7;" data-color="#6C5CE7"></button>
+                    <button class="color-btn" style="background-color: #E17055;" data-color="#E17055"></button>
+                    <button class="color-btn" style="background-color: #FDCB6E;" data-color="#FDCB6E"></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Convert -->
+        <div class="quick-convert">
+            <h3><i class="fas fa-bolt"></i> Quick Convert</h3>
+            <div class="quick-buttons" id="quickButtons">
+                <!-- Filled by JavaScript -->
+            </div>
+        </div>
+
+        <!-- Main Action Buttons -->
+        <div class="action-buttons">
+            <button class="btn-primary" id="convertPage">
+                <i class="fas fa-sync-alt"></i>
+                Convert This Page
+                <span class="badge" id="convertedCount">0</span>
+            </button>
+            
+            <button class="btn-secondary" id="resetPage">
+                <i class="fas fa-undo"></i>
+                Reset Page
+            </button>
+            
+            <button class="btn-toggle" id="toggleAutoConvert">
+                <i class="fas fa-toggle-off"></i>
+                Auto-Convert
+            </button>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <div class="currency-count">
+                <i class="fas fa-coins"></i>
+                <span id="currencyCount">Loading currencies...</span>
+            </div>
+            <div class="api-info">
+                Real-time exchange rates
+            </div>
+        </div>
     </div>
 
-    <section class="controls">
-      <div class="currency-group">
-        <label class="control-label">
-          <span class="emoji">🌍</span>
-          Source Currency
-        </label>
-        <select id="source-currency" class="currency-select">
-          <option value="USD">🇺🇸 USD - US Dollar</option>
-          <option value="EUR">🇪🇺 EUR - Euro</option>
-          <option value="GBP">🇬🇧 GBP - British Pound</option>
-          <option value="JPY">🇯🇵 JPY - Japanese Yen</option>
-          <option value="CAD">🇨🇦 CAD - Canadian Dollar</option>
-          <option value="AUD">🇦🇺 AUD - Australian Dollar</option>
-          <option value="CHF">🇨🇭 CHF - Swiss Franc</option>
-        </select>
-      </div>
-
-      <div class="toggle-switch">
-        <input type="checkbox" id="auto-detect" checked>
-        <label for="auto-detect" class="switch-label">
-          <span class="toggle-ball"></span>
-        </label>
-        <span class="toggle-text">Auto-detect currency</span>
-      </div>
-
-      <div class="currency-group">
-        <label class="control-label">
-          <span class="emoji">🎯</span>
-          Target Currency
-        </label>
-        <select id="target-currency" class="currency-select">
-          <option value="USD">🇺🇸 USD - US Dollar</option>
-          <option value="EUR" selected>🇪🇺 EUR - Euro</option>
-          <option value="GBP">🇬🇧 GBP - British Pound</option>
-          <option value="JPY">🇯🇵 JPY - Japanese Yen</option>
-          <option value="CAD">🇨🇦 CAD - Canadian Dollar</option>
-          <option value="AUD">🇦🇺 AUD - Australian Dollar</option>
-          <option value="INR">🇮🇳 INR - Indian Rupee</option>
-          <option value="CNY">🇨🇳 CNY - Chinese Yuan</option>
-        </select>
-      </div>
-
-      <div class="color-group">
-        <label class="control-label">
-          <span class="emoji">🎨</span>
-          Text Color
-        </label>
-        <input type="color" id="text-color" value="#00ff88" class="color-picker">
-      </div>
-
-      <div class="toggle-switch">
-        <input type="checkbox" id="show-original" checked>
-        <label for="show-original" class="switch-label">
-          <span class="toggle-ball"></span>
-        </label>
-        <span class="toggle-text">Show original price</span>
-      </div>
-
-      <button id="convert-btn" class="convert-button">
-        <span class="btn-emoji">⚡</span>
-        Convert Current Page
-      </button>
-
-      <button id="reset-btn" class="reset-button">
-        <span class="btn-emoji">↩️</span>
-        Reset Page
-      </button>
-    </section>
-
-    <footer>
-      <div class="stats">
-        <span id="converted-count">0</span> prices converted
-      </div>
-      <div class="last-updated" id="last-updated">
-        Rates updated: Never
-      </div>
-    </footer>
-  </div>
-
-  <script src="popup.js"></script>
+    <script src="popup.js"></script>
 </body>
 </html>
